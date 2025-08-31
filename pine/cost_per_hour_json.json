@@ -1,0 +1,123 @@
+{
+  "title": "Cost Per Hour of Activity",
+  "currency": "₹",
+  "activity_categories": {
+    "-2000.00": {
+      "label": "Costly Activities (₹-2,000.00)",
+      "description": "Activities that cost money or have negative value",
+      "activities": [
+        "Drinking Alcohol",
+        "Eating Fast food",
+        "Hanging out with negative people",
+        "Worrying what people think of you",
+        "Avoiding problems that need fixing",
+        "Breaking promises & letting people down"
+      ]
+    },
+    "0.00": {
+      "label": "Free Activities (₹0.00)",
+      "description": "Activities with no direct cost but potentially low value",
+      "activities": [
+        "Watching Netflix",
+        "Checking Facebook & Instagram",
+        "Watching YouTube videos",
+        "Playing video games",
+        "Following other peoples lives"
+      ]
+    },
+    "100.00": {
+      "label": "Low-Value Tasks (₹100.00)",
+      "description": "Activities with minimal value but some productivity",
+      "activities": [
+        "Reading articles",
+        "Browsing internet non-relevant content"
+      ]
+    },
+    "200.00": {
+      "label": "Basic Tasks (₹200.00)",
+      "description": "Routine tasks and basic operational activities",
+      "activities": [
+        "Running errands",
+        "Buying groceries or trips to any store",
+        "Cooking meals, cleaning, doing dishes",
+        "Attending meetings or phone calls",
+        "Moving laws, household maintenance",
+        "Replying to emails and social messages",
+        "Customer support",
+        "Answering your phone and txts",
+        "Editing your website",
+        "Spelling everything perfectly",
+        "Cold calling & following up"
+      ]
+    },
+    "2000.00": {
+      "label": "Professional Tasks (₹2,000.00)",
+      "description": "Client-facing and professional development activities",
+      "activities": [
+        "Solving a problem for a client",
+        "Talking to a qualified prospect",
+        "Writing emails to prospects or clients",
+        "Managing PPC campaigns",
+        "Outsourcing simple tasks",
+        "Creating best practice documents",
+        "Posting content on social media",
+        "Reading books & taking courses"
+      ]
+    },
+    "20000.00": {
+      "label": "High-Value Tasks (₹20,000.00)",
+      "description": "Strategic and high-impact business activities",
+      "activities": [
+        "Planning and organizing your day",
+        "Negotiating with a hot prospect",
+        "Building sales funnels, webinars etc.",
+        "Delegating complex tasks",
+        "Writing ad copy or sales copy",
+        "Creating PPC campaigns",
+        "Creating & judging tests & experiments",
+        "Building and testing systems/machines",
+        "Exercise, sleep & relaxation",
+        "Hanging out with smart people",
+        "Meditation"
+      ]
+    },
+    "200000.00": {
+      "label": "Executive Tasks (₹200,000.00)",
+      "description": "Leadership and business development activities",
+      "activities": [
+        "Creating & improving your products",
+        "Creating & improving your offers",
+        "Improving your value proposition",
+        "Negotiating major deals",
+        "Establishing values & culture",
+        "Selling to qualified groups",
+        "Cutting costs",
+        "Reflection & honest self analysis",
+        "Fixing repeating problems & errors"
+      ]
+    },
+    "2000000.00": {
+      "label": "CEO-Level Tasks (₹2,000,000.00)",
+      "description": "Strategic leadership and major business decisions",
+      "activities": [
+        "Capital allocation decisions",
+        "Salary & incentive decisions",
+        "Restructuring decisions",
+        "Establishing long term partnerships",
+        "Hiring & firing team members",
+        "Setting long term strategy/direction",
+        "Architecting systems & machines",
+        "Radical innovation",
+        "Public speaking to qualified crowds"
+      ]
+    }
+  },
+  "metadata": {
+    "total_categories": 7,
+    "value_range": {
+      "minimum": -2000.00,
+      "maximum": 2000000.00
+    },
+    "concept": "Time and activity valuation framework for prioritizing high-impact work"
+  }
+}
