@@ -91,7 +91,7 @@ class NotificationService {
 
       return finalStatus === 'granted';
     } catch (error) {
-      console.error('Failed to request notification permissions:', error);
+      // Failed to request notification permissions
       return false;
     }
   }
@@ -156,9 +156,9 @@ class NotificationService {
         this.notificationIdentifiers.push(identifier);
       }
 
-      console.log(`Scheduled ${this.notificationIdentifiers.length} notifications`);
+      // Notifications scheduled successfully
     } catch (error) {
-      console.error('Failed to schedule notifications:', error);
+      // Failed to schedule notifications
       throw error;
     }
   }
@@ -170,9 +170,9 @@ class NotificationService {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
       this.notificationIdentifiers = [];
-      console.log('All notifications cancelled');
+      // All notifications cancelled
     } catch (error) {
-      console.error('Failed to cancel notifications:', error);
+      // Failed to cancel notifications
     }
   }
 
@@ -183,7 +183,7 @@ class NotificationService {
     try {
       return await Notifications.getAllScheduledNotificationsAsync();
     } catch (error) {
-      console.error('Failed to get scheduled notifications:', error);
+      // Failed to get scheduled notifications
       return [];
     }
   }
@@ -243,7 +243,7 @@ class NotificationService {
         trigger: null, // Send immediately
       });
     } catch (error) {
-      console.error('Failed to send test notification:', error);
+      // Failed to send test notification
       throw error;
     }
   }
@@ -286,7 +286,7 @@ class NotificationService {
         nextNotification,
       };
     } catch (error) {
-      console.error('Failed to get notification status:', error);
+      // Failed to get notification status
       return {
         permissionGranted: false,
         scheduledCount: 0,

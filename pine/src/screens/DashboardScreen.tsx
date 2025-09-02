@@ -1,48 +1,75 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, RefreshControl, SafeAreaView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { format, addDays, subDays, isToday } from 'date-fns';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, TouchableOpacity, Alert, StatusBar } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DailyLog, TimeSlot, Activity } from '../types';
 import { storageService } from '../services/StorageService';
 import { timeSlotService } from '../services/TimeSlotService';
 import { activityService } from '../services/ActivityService';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../styles/designSystem';
-import { calculateAnnualProjection, getIncomeCalculationExplanation } from '../utils/indianNumberFormat';
-import CalendarTimelineView from '../components/CalendarTimelineView';
-import IncomeProjectionHeader from '../components/IncomeProjectionHeader';
+import { 
+  Timeline,
+  SemanticColors, 
+  Colors,
+  calculateDashboardMetrics
+} from '../styles/designSystem';
+import { calculateAnnualProjection } from '../utils/indianNumberFormat';
+import { AppText } from '../components/ui';
+import {
+  TimelineContainer,
+  StatsHeader,
+  CurrentActivityStatus
+} from '../components/dashboard';
 
-const DashboardScreen = ({ navigation }: any) => {
+// Type-safe navigation props
+type RootStackParamList = {
+  Dashboard: undefined;
+  ActivitySelection: {
+    timeSlot: TimeSlot;
+    onActivitySelected: (activity: Activity | null) => void;
+  };
+  Settings: undefined;
+  Stats: undefined;
+};
+
+type DashboardScreenProps = NativeStackScreenProps<RootStackParamList, 'Dashboard'>;
+
+const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
+  // Simplified state management - only 3 core state variables
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [todayLog, setTodayLog] = useState<DailyLog | null>(null);
-  const [todayTimeSlots, setTodayTimeSlots] = useState<TimeSlot[]>([]);
-  const [currentActivity, setCurrentActivity] = useState<TimeSlot | null>(null);
-  const [annualProjection, setAnnualProjection] = useState<string>('₹0');
-  const [highValuePercentage, setHighValuePercentage] = useState<number>(0);
-  const [progressStats, setProgressStats] = useState<{totalSlots: number, filledSlots: number, zeroValueSlots: number}>({
-    totalSlots: 0,
-    filledSlots: 0,
-    zeroValueSlots: 0
-  });
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [selectedDate]);
+  // Computed values using useMemo - replaces multiple useState hooks
+  const dashboardData = useMemo(() => {
+    const todayLog = timeSlotService.calculateDailyLog(selectedDate, timeSlots);
+    const currentTimeSlot = timeSlotService.getCurrentTimeSlot(timeSlots);
+    const currentActivity = currentTimeSlot || 
+                           timeSlots.filter(s => s.activity).pop() || null;
+    const annualProjection = calculateAnnualProjection(todayLog.totalValue);
+    const metrics = calculateDashboardMetrics(timeSlots);
+    
+    return {
+      todayLog,
+      currentTimeSlot,
+      currentActivity,
+      annualProjection,
+      metrics
+    };
+  }, [selectedDate, timeSlots]);
 
-  const loadDashboardData = async () => {
+  // Simplified data loading method
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      const today = selectedDate;
       
-      // Generate time slots for today
-      const timeSlots = timeSlotService.generateTimeSlotsForDate(today);
+      // Generate time slots for selected date
+      const generatedTimeSlots = timeSlotService.generateTimeSlotsForDate(selectedDate);
       
-      // Get stored activity logs for today and populate time slots
-      const storedLogs = await storageService.getActivityLogsForDate(today);
-      const populatedTimeSlots = timeSlots.map(slot => {
+      // Get stored activity logs and populate time slots
+      const storedLogs = await storageService.getActivityLogsForDate(selectedDate);
+      const populatedTimeSlots = generatedTimeSlots.map(slot => {
         const log = storedLogs.find(l => l.id === slot.id);
         if (log) {
           const activity = activityService.getActivityById(log.activityId);
@@ -51,65 +78,30 @@ const DashboardScreen = ({ navigation }: any) => {
         return slot;
       });
       
-      setTodayTimeSlots(populatedTimeSlots);
-      
-      // Create today's log
-      const dailyLog = timeSlotService.calculateDailyLog(today, populatedTimeSlots);
-      setTodayLog(dailyLog);
-      
-      // Calculate annual projection
-      const projection = calculateAnnualProjection(dailyLog.totalValue);
-      setAnnualProjection(projection);
-      
-      // Find current/recent activity
-      const now = new Date();
-      const current = timeSlotService.getCurrentTimeSlot(populatedTimeSlots) || 
-                     populatedTimeSlots.filter(s => s.activity).pop() || null;
-      setCurrentActivity(current);
-      
-      // Calculate high-value percentage and progress stats
-      const filledSlots = populatedTimeSlots.filter(s => s.activity).length;
-      const highValueSlots = populatedTimeSlots.filter(s => s.value >= 10000).length;
-      const zeroValueSlots = populatedTimeSlots.filter(s => s.activity && s.value === 0).length;
-      
-      setHighValuePercentage(filledSlots > 0 ? Math.round((highValueSlots / filledSlots) * 100) : 0);
-      
-      // Store additional progress stats for header
-      setProgressStats({
-        totalSlots: populatedTimeSlots.length,
-        filledSlots,
-        zeroValueSlots
-      });
+      // Update time slots state - all other values computed via useMemo
+      setTimeSlots(populatedTimeSlots);
       
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-      Alert.alert('Error', 'Failed to load dashboard data');
+      // Failed to load dashboard data
+      Alert.alert(
+        'Load Failed', 
+        'Unable to load dashboard data. Please try refreshing.', 
+        [
+          { text: 'OK' },
+          { text: 'Retry', onPress: () => loadDashboardData() }
+        ]
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadDashboardData();
-    setRefreshing(false);
-  };
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
-  // Removed navigateToCurrentDay since we no longer use DayView
-
-  const openQuickAction = () => {
-    const currentSlot = timeSlotService.getCurrentTimeSlot(todayTimeSlots) || 
-                       timeSlotService.generateTimeSlotsForDate(new Date())[0];
-    
-    navigation.navigate('ActivitySelection', {
-      timeSlot: currentSlot,
-      onActivitySelected: (activity: Activity | null) => {
-        handleActivitySelected(currentSlot, activity);
-      }
-    });
-  };
-
-  const handleActivitySelected = async (timeSlot: TimeSlot, activity: Activity | null) => {
+  // Simplified activity selection handler
+  const handleActivitySelected = useCallback(async (timeSlot: TimeSlot, activity: Activity | null) => {
     try {
       let updatedTimeSlot: TimeSlot;
       
@@ -123,255 +115,179 @@ const DashboardScreen = ({ navigation }: any) => {
         updatedTimeSlot = { ...timeSlot, activity: undefined, value: 0 };
       }
       
-      // Update the time slots state directly without full reload
-      setTodayTimeSlots(prevSlots => 
+      // Update time slots state - computed values will update automatically via useMemo
+      setTimeSlots(prevSlots => 
         prevSlots.map(slot => 
           slot.id === timeSlot.id ? updatedTimeSlot : slot
         )
       );
       
-      // Recalculate stats based on updated slots
-      const updatedSlots = todayTimeSlots.map(slot => 
-        slot.id === timeSlot.id ? updatedTimeSlot : slot
-      );
-      
-      // Update derived state
-      const dailyLog = timeSlotService.calculateDailyLog(selectedDate, updatedSlots);
-      setTodayLog(dailyLog);
-      
-      const projection = calculateAnnualProjection(dailyLog.totalValue);
-      setAnnualProjection(projection);
-      
-      const filledSlots = updatedSlots.filter(s => s.activity).length;
-      const highValueSlots = updatedSlots.filter(s => s.value >= 10000).length;
-      const zeroValueSlots = updatedSlots.filter(s => s.activity && s.value === 0).length;
-      
-      setHighValuePercentage(filledSlots > 0 ? Math.round((highValueSlots / filledSlots) * 100) : 0);
-      setProgressStats({
-        totalSlots: updatedSlots.length,
-        filledSlots,
-        zeroValueSlots
-      });
-      
     } catch (error) {
-      console.error('Failed to handle activity selection:', error);
+      // Failed to handle activity selection
       Alert.alert('Error', 'Failed to save activity');
     }
-  };
+  }, []);
 
-  const showIncomeExplanation = () => {
-    Alert.alert(
-      'How Income is Calculated',
-      getIncomeCalculationExplanation(),
-      [{ text: 'Got it', style: 'default' }]
-    );
-  };
-
-  const handleTimeSlotPress = (timeSlot: TimeSlot) => {
+  const handleTimeSlotPress = useCallback((timeSlot: TimeSlot) => {
     navigation.navigate('ActivitySelection', {
       timeSlot,
       onActivitySelected: (activity: Activity | null) => {
         handleActivitySelected(timeSlot, activity);
       }
     });
-  };
+  }, [navigation, handleActivitySelected]);
 
-  const handleScrollToNow = () => {
-    // Optional: Add any analytics or feedback for scroll to now action
-  };
+  const handleStopCurrentActivity = useCallback(() => {
+    if (dashboardData.currentActivity) {
+      handleActivitySelected(dashboardData.currentActivity, null);
+    }
+  }, [dashboardData.currentActivity, handleActivitySelected]);
 
-  const navigateToDate = (newDate: Date) => {
-    setSelectedDate(newDate);
-  };
-
-  const goToPreviousDay = () => {
-    navigateToDate(subDays(selectedDate, 1));
-  };
-
-  const goToNextDay = () => {
-    navigateToDate(addDays(selectedDate, 1));
-  };
-
-  const goToToday = () => {
-    navigateToDate(new Date());
-  };
-
+  // Loading state
   if (loading) {
     return (
-      <LinearGradient colors={Colors.skyGradient} style={styles.container}>
-        <SafeAreaView style={styles.centerContainer}>
-          <Text style={styles.loadingText}>✨ Loading your income prediction...</Text>
-        </SafeAreaView>
-      </LinearGradient>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={SemanticColors.surface.primary} />
+        <View style={styles.loadingContainer}>
+          <View style={styles.loadingContent}>
+            <AppText variant="bodyRegular" color="secondary" style={styles.loadingText}>
+              ✨ Loading your income prediction...
+            </AppText>
+          </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <LinearGradient colors={Colors.skyGradient} style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        {/* Date Navigation */}
-        <View style={styles.dateNavigation}>
-          <TouchableOpacity onPress={goToPreviousDay} style={styles.navArrow}>
-            <Ionicons name="chevron-back" size={20} color={Colors.primaryBlue} />
+    <SafeAreaView style={styles.mobileContainer}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      
+      {/* Header - Matching HTML Reference */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => {/* Menu functionality not implemented */}} style={styles.menuButton}>
+            <Ionicons name="menu" size={20} color="#9E9E9E" />
           </TouchableOpacity>
-          
-          <TouchableOpacity onPress={goToToday} style={styles.dateButton}>
-            <Text style={styles.dateText}>
-              {isToday(selectedDate) ? 'Today' : format(selectedDate, 'MMM d, yyyy')}
-            </Text>
-            <Text style={styles.dayText}>{format(selectedDate, 'EEEE')}</Text>
+          <View style={styles.headerTitle}>
+            <AppText style={styles.pineTitle}>Pine</AppText>
+            <AppText style={styles.todaySubtitle}>Today</AppText>
+          </View>
+        </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={() => navigation.navigate('Stats')} style={styles.actionButton}>
+            <Ionicons name="bar-chart-outline" size={20} color="#9E9E9E" />
           </TouchableOpacity>
-          
-          <TouchableOpacity onPress={goToNextDay} style={styles.navArrow}>
-            <Ionicons name="chevron-forward" size={20} color={Colors.primaryBlue} />
+          <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.actionButton}>
+            <Ionicons name="settings-outline" size={20} color="#9E9E9E" />
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Income Projection Header */}
-        <IncomeProjectionHeader
-          annualProjection={annualProjection}
-          todayValue={todayLog?.totalValue || 0}
-          todayActivityCount={todayLog?.activityCount || 0}
-          highValuePercentage={highValuePercentage}
-          totalSlots={progressStats.totalSlots}
-          filledSlots={progressStats.filledSlots}
-          zeroValueSlots={progressStats.zeroValueSlots}
-          onInfoPress={showIncomeExplanation}
-        />
+      {/* Stats Card - Exact Match to HTML */}
+      <StatsHeader
+        todayProjection={dashboardData.todayLog.totalValue}
+        annualProjection={dashboardData.annualProjection}
+        avgHourlyValue={dashboardData.metrics.avgHourlyValue}
+        efficiency={dashboardData.metrics.efficiency}
+      />
 
-        {/* Calendar Timeline View */}
-        <CalendarTimelineView
-          timeSlots={todayTimeSlots}
-          currentTime={new Date()}
-          onTimeSlotPress={handleTimeSlotPress}
-          onScrollToNow={handleScrollToNow}
-        />
+      {/* Timeline - Matching HTML Structure */}
+      <TimelineContainer
+        timeSlots={timeSlots}
+        onTimeSlotPress={handleTimeSlotPress}
+        currentTimeSlot={dashboardData.currentTimeSlot}
+        maxSlots={48}
+      />
 
-        {/* Floating Action Button */}
-        <TouchableOpacity style={styles.fab} onPress={openQuickAction}>
-          <Ionicons name="add" size={28} color={Colors.cloudWhite} />
-        </TouchableOpacity>
-
-        {/* Bottom Navigation */}
-        <View style={styles.bottomNav}>
-          <TouchableOpacity 
-            style={styles.navButton} 
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Ionicons name="settings-outline" size={22} color={Colors.primaryBlue} />
-            <Text style={styles.navButtonText}>Settings</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.navButton} 
-            onPress={() => navigation.navigate('ActivityLog')}
-          >
-            <Ionicons name="list-outline" size={22} color={Colors.primaryBlue} />
-            <Text style={styles.navButtonText}>History</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.navButton} 
-            onPress={() => navigation.navigate('Stats')}
-          >
-            <Ionicons name="analytics-outline" size={22} color={Colors.primaryBlue} />
-            <Text style={styles.navButtonText}>Stats</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </LinearGradient>
+      {/* Current Activity Status */}
+      <CurrentActivityStatus
+        currentActivity={dashboardData.currentActivity}
+        onStopActivity={handleStopCurrentActivity}
+      />
+    </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
+// iPhone 14 Plus optimized styles matching HTML reference exactly
+const styles = {
+  // Mobile container - iPhone 14 Plus (375px equivalent)
+  mobileContainer: {
     flex: 1,
+    maxWidth: 428, // iPhone 14 Plus actual width
+    alignSelf: 'center' as const,
+    backgroundColor: '#FAFAFA', // var(--background)
+    width: '100%',
   },
-  safeArea: {
+  
+  // Loading state
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    padding: 40,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  loadingContent: {
+    alignItems: 'center' as const,
   },
   loadingText: {
-    ...Typography.bodyLarge,
-    color: Colors.shadowGray,
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
-  fab: {
-    position: 'absolute',
-    bottom: 100,
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.primaryBlue,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.large,
-    elevation: 8,
+  
+  // Header - exact match to HTML reference
+  header: {
+    backgroundColor: '#FFFFFF', // var(--card)
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E5', // var(--border)
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    position: 'sticky' as const,
+    zIndex: 50,
   },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.cloudWhite + 'F0',
-    borderTopWidth: 1,
-    borderTopColor: Colors.mistGray,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: Spacing.md,
-    paddingBottom: Spacing.lg,
-  },
-  navButton: {
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  navButtonText: {
-    ...Typography.caption,
-    color: Colors.primaryBlue,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  dateNavigation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.cloudWhite + '20',
-    marginHorizontal: Spacing.md,
-    borderRadius: BorderRadius.medium,
-    marginTop: Spacing.sm,
-  },
-  navArrow: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.cloudWhite,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.soft,
-  },
-  dateButton: {
+  
+  headerLeft: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
   },
-  dateText: {
-    ...Typography.bodyLarge,
-    color: Colors.primaryBlue,
-    fontWeight: 'bold',
+  
+  menuButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
   },
-  dayText: {
-    ...Typography.caption,
-    color: Colors.shadowGray,
-    marginTop: 2,
+  
+  headerTitle: {
+    marginLeft: 12,
   },
-});
+  
+  pineTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#16A34A', // text-green-700 
+    marginBottom: 2,
+  },
+  
+  todaySubtitle: {
+    fontSize: 12,
+    color: '#6B7280', // text-gray-500
+    fontWeight: '400' as const,
+  },
+  
+  headerRight: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  
+  actionButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+  },
+};
 
 export default DashboardScreen;

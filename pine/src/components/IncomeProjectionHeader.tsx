@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, TouchableOpacity, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../styles/designSystem';
+import { Colors, Spacing, Shadows } from '../styles/designSystem';
 import { formatIndianNumber, getValueDisplayWithSign } from '../utils/indianNumberFormat';
+import { AppText, Stack, Card } from './ui';
 
 interface IncomeProjectionHeaderProps {
   annualProjection: string;
@@ -49,10 +50,10 @@ const IncomeProjectionHeader: React.FC<IncomeProjectionHeaderProps> = ({
 
 
   const getProjectionTrend = () => {
-    if (todayValue > 50000) return { icon: '📈', color: Colors.successGreen, text: 'Excellent pace!' };
-    if (todayValue > 20000) return { icon: '📊', color: Colors.primaryBlue, text: 'Good progress' };
-    if (todayValue > 0) return { icon: '🎯', color: Colors.premiumGold, text: 'Keep building' };
-    return { icon: '⭐', color: Colors.shadowGray, text: 'Ready to start' };
+    if (todayValue > 50000) return { icon: '📈', color: Colors.success[600], text: 'Excellent pace!' };
+    if (todayValue > 20000) return { icon: '📊', color: Colors.primary[500], text: 'Good progress' };
+    if (todayValue > 0) return { icon: '🎯', color: Colors.warning[600], text: 'Keep building' };
+    return { icon: '⭐', color: Colors.neutral[400], text: 'Ready to start' };
   };
 
   const trend = getProjectionTrend();
@@ -68,251 +69,152 @@ const IncomeProjectionHeader: React.FC<IncomeProjectionHeaderProps> = ({
       ]}
     >
       <LinearGradient
-        colors={[Colors.primaryBlue + '15', Colors.skyBlue + '10', 'transparent']}
+        colors={[Colors.primary[500] + '15', Colors.primary[300] + '10', 'transparent']}
         style={styles.gradientBackground}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* Main projection display */}
         {/* Compact Progress Visualizer */}
-        <View style={styles.progressVisualizerContainer}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Daily Progress</Text>
-            <Text style={styles.progressStats}>{filledSlots}/{totalSlots} hours</Text>
-          </View>
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressTrack}>
-              <View 
-                style={[
-                  styles.filledProgress,
-                  { width: `${(filledSlots / totalSlots) * 100}%` }
-                ]} 
-              />
-            </View>
-            <Text style={styles.progressPercent}>
-              {Math.round((filledSlots / totalSlots) * 100)}%
-            </Text>
-          </View>
-          <View style={styles.progressLegend}>
-            <Text style={styles.legendItem}>• {totalSlots - filledSlots} empty</Text>
-            <Text style={styles.legendItem}>• {zeroValueSlots} zero value</Text>
-          </View>
-        </View>
+        <Card variant="outlined" padding="small" style={{ marginBottom: Spacing.sm }}>
+          <Stack spacing="xs">
+            <Stack direction="horizontal" justify="space-between" align="center">
+              <AppText variant="caption" color="primary" style={{ fontWeight: '600' }}>
+                Daily Progress
+              </AppText>
+              <AppText variant="caption" color="secondary">
+                {filledSlots}/{totalSlots} hours
+              </AppText>
+            </Stack>
+            
+            <Stack direction="horizontal" align="center" spacing="sm">
+              <View style={styles.progressTrack}>
+                <View 
+                  style={[
+                    styles.filledProgress,
+                    { width: `${(filledSlots / totalSlots) * 100}%` }
+                  ]} 
+                />
+              </View>
+              <AppText variant="caption" color="primary" style={{ fontWeight: 'bold', minWidth: 40, textAlign: 'right' }}>
+                {Math.round((filledSlots / totalSlots) * 100)}%
+              </AppText>
+            </Stack>
+            
+            <Stack direction="horizontal" justify="space-around">
+              <AppText variant="caption" color="tertiary" style={{ fontSize: 10 }}>
+                • {totalSlots - filledSlots} empty
+              </AppText>
+              <AppText variant="caption" color="tertiary" style={{ fontSize: 10 }}>
+                • {zeroValueSlots} zero value
+              </AppText>
+            </Stack>
+          </Stack>
+        </Card>
 
-        <View style={styles.projectionContainer}>
-          <View style={styles.projectionHeader}>
-            <Text style={styles.projectionLabel}>Annual Projection</Text>
+        <Stack align="center" spacing="xs" style={{ marginBottom: Spacing.sm }}>
+          <Stack direction="horizontal" justify="space-between" align="center" style={{ width: '100%' }}>
+            <AppText variant="bodySmall" color="secondary" style={{ fontWeight: '500' }}>
+              Annual Projection
+            </AppText>
             <TouchableOpacity 
               onPress={onInfoPress} 
               style={styles.infoButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Learn more about projection calculation"
+              accessibilityRole="button"
             >
-              <Ionicons name="information-circle" size={16} color={Colors.primaryBlue} />
+              <Ionicons name="information-circle" size={16} color={Colors.primary[500]} />
             </TouchableOpacity>
-          </View>
-          <Text style={styles.projectionAmount}>{annualProjection}</Text>
-        </View>
+          </Stack>
+          <AppText variant="heading2" color="primary" align="center" style={{ fontWeight: 'bold' }}>
+            {annualProjection}
+          </AppText>
+        </Stack>
 
         {/* Today's performance */}
-        <View style={styles.todayContainer}>
-          <View style={styles.todayStats}>
-            <View style={styles.statItem}>
-              <Text style={[styles.todayAmount, { color: todayValueDisplay.color }]}>
-                {todayValueDisplay.text}
-              </Text>
-              <Text style={styles.statLabel}>Today</Text>
-            </View>
-            
-            <View style={styles.statDivider} />
-            
-            <View style={styles.statItem}>
-              <Text style={styles.activityCount}>
-                {todayActivityCount}
-              </Text>
-              <Text style={styles.statLabel}>Activities</Text>
-            </View>
-            
-            <View style={styles.statDivider} />
-            
-            <View style={styles.statItem}>
-              <Text style={styles.percentage}>
-                {highValuePercentage}%
-              </Text>
-              <Text style={styles.statLabel}>High-value</Text>
-            </View>
-          </View>
+        <Card variant="elevated" padding="small" style={{ ...Shadows.soft }}>
+          <Stack spacing="xs">
+            <Stack direction="horizontal" justify="space-between" align="center">
+              <Stack align="center" style={{ flex: 1 }}>
+                <AppText variant="heading3" style={{ color: todayValueDisplay.color, fontWeight: 'bold', marginBottom: 2 }}>
+                  {todayValueDisplay.text}
+                </AppText>
+                <AppText variant="caption" color="secondary" style={{ fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Today
+                </AppText>
+              </Stack>
+              
+              <View style={styles.statDivider} />
+              
+              <Stack align="center" style={{ flex: 1 }}>
+                <AppText variant="heading3" color="primary" style={{ fontWeight: 'bold', marginBottom: 2 }}>
+                  {todayActivityCount}
+                </AppText>
+                <AppText variant="caption" color="secondary" style={{ fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Activities
+                </AppText>
+              </Stack>
+              
+              <View style={styles.statDivider} />
+              
+              <Stack align="center" style={{ flex: 1 }}>
+                <AppText variant="heading3" color="success" style={{ fontWeight: 'bold', marginBottom: 2 }}>
+                  {highValuePercentage}%
+                </AppText>
+                <AppText variant="caption" color="secondary" style={{ fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  High-value
+                </AppText>
+              </Stack>
+            </Stack>
 
-          {/* Progress indicator */}
-          <View style={styles.trendIndicator}>
-            <Text style={styles.trendIcon}>{trend.icon}</Text>
-            <Text style={[styles.trendText, { color: trend.color }]}>
-              {trend.text}
-            </Text>
-          </View>
-        </View>
+            {/* Progress indicator */}
+            <Stack direction="horizontal" align="center" justify="center">
+              <AppText style={{ fontSize: 16, marginRight: Spacing.sm }}>{trend.icon}</AppText>
+              <AppText variant="bodySmall" style={{ color: trend.color, fontWeight: '600' }}>
+                {trend.text}
+              </AppText>
+            </Stack>
+          </Stack>
+        </Card>
       </LinearGradient>
     </Animated.View>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = {
   container: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
-    borderRadius: BorderRadius.large,
-    overflow: 'hidden',
+    borderRadius: 16,
+    overflow: 'hidden' as const,
     ...Shadows.medium,
   },
   gradientBackground: {
-    backgroundColor: Colors.cloudWhite,
-    padding: Spacing.sm, // Further reduced from md
-  },
-  progressVisualizerContainer: {
-    backgroundColor: Colors.skyBlue + '10',
-    borderRadius: BorderRadius.small,
-    padding: Spacing.xs, // Reduced from sm
-    marginBottom: Spacing.sm, // Reduced from md
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-  },
-  progressTitle: {
-    ...Typography.caption,
-    color: Colors.primaryBlue,
-    fontWeight: '600',
-  },
-  progressStats: {
-    ...Typography.caption,
-    color: Colors.shadowGray,
-    fontWeight: '500',
-  },
-  progressBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
+    backgroundColor: Colors.neutral[50],
+    padding: Spacing.sm,
   },
   progressTrack: {
     flex: 1,
     height: 8,
-    backgroundColor: Colors.mistGray,
+    backgroundColor: Colors.neutral[200],
     borderRadius: 4,
-    overflow: 'hidden',
-    marginRight: Spacing.sm,
+    overflow: 'hidden' as const,
   },
   filledProgress: {
-    height: '100%',
-    backgroundColor: Colors.primaryBlue,
-  },
-  progressPercent: {
-    ...Typography.caption,
-    color: Colors.primaryBlue,
-    fontWeight: 'bold',
-    minWidth: 40,
-    textAlign: 'right',
-  },
-  progressLegend: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  legendItem: {
-    ...Typography.caption,
-    color: Colors.shadowGray,
-    fontSize: 10,
-  },
-  projectionContainer: {
-    alignItems: 'center',
-    marginBottom: Spacing.sm, // Further reduced from md
-  },
-  projectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: Spacing.xs,
+    height: 8,
+    backgroundColor: Colors.primary[500],
   },
   infoButton: {
     padding: Spacing.xs,
-    borderRadius: BorderRadius.small,
-    backgroundColor: Colors.primaryBlue + '10',
-  },
-  projectionLabel: {
-    ...Typography.bodySmall,
-    color: Colors.shadowGray,
-    fontWeight: '500',
-  },
-  projectionAmount: {
-    ...Typography.headline,
-    fontSize: 20, // Even smaller
-    color: Colors.primaryBlue,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  todayContainer: {
-    backgroundColor: Colors.cloudWhite + '80',
-    borderRadius: BorderRadius.medium,
-    padding: Spacing.sm, // Further reduced from md
-    ...Shadows.soft,
-  },
-  todayStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xs, // Further reduced from md
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
+    borderRadius: 8,
+    backgroundColor: Colors.primary[100],
   },
   statDivider: {
     width: 1,
     height: 30,
-    backgroundColor: Colors.mistGray,
+    backgroundColor: Colors.neutral[200],
     marginHorizontal: Spacing.md,
   },
-  todayAmount: {
-    ...Typography.headline,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  activityCount: {
-    ...Typography.headline,
-    color: Colors.primaryBlue,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  percentage: {
-    ...Typography.headline,
-    color: Colors.successGreen,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  statLabel: {
-    ...Typography.caption,
-    color: Colors.shadowGray,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  progressBar: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  trendIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trendIcon: {
-    fontSize: 16,
-    marginRight: Spacing.sm,
-  },
-  trendText: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-  },
-});
+};
 
 export default IncomeProjectionHeader;

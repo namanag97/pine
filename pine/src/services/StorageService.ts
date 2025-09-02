@@ -42,7 +42,7 @@ class StorageService {
       }
       return deviceId;
     } catch (error) {
-      console.error('Failed to initialize device ID:', error);
+      // Fallback to timestamp-based ID if storage fails
       return `fallback_${Date.now()}`;
     }
   }
@@ -104,9 +104,9 @@ class StorageService {
       // Sync to Supabase (optional, will fail gracefully if offline)
       try {
         await supabaseService.syncActivityLog(storedLog);
-        console.log('Activity log synced to Supabase');
+        // Activity log synced successfully
       } catch (syncError) {
-        console.warn('Failed to sync activity log to Supabase:', syncError);
+        // Failed to sync - will retry on next operation
         // Continue execution - sync failure shouldn't block local storage
       }
 
@@ -129,7 +129,7 @@ class StorageService {
       const data = await AsyncStorage.getItem(this.KEYS.ACTIVITY_LOGS);
       return data ? JSON.parse(data) : [];
     } catch (error) {
-      console.error('Failed to get activity logs:', error);
+      // Failed to get activity logs
       return [];
     }
   }
@@ -147,7 +147,7 @@ class StorageService {
         return logDate === targetDate;
       });
     } catch (error) {
-      console.error('Failed to get activity logs for date:', error);
+      // Failed to get activity logs for date
       return [];
     }
   }
@@ -164,7 +164,7 @@ class StorageService {
         return logTime >= startDate && logTime <= endDate;
       });
     } catch (error) {
-      console.error('Failed to get activity logs for date range:', error);
+      // Failed to get activity logs for date range
       return [];
     }
   }
@@ -193,9 +193,9 @@ class StorageService {
       // Sync deletion to Supabase (optional, will fail gracefully if offline)
       try {
         await supabaseService.deleteActivityLog(id);
-        console.log('Activity log deletion synced to Supabase');
+        // Activity log deletion synced successfully
       } catch (syncError) {
-        console.warn('Failed to sync activity log deletion to Supabase:', syncError);
+        // Failed to sync deletion - will retry on next operation
         // Continue execution - sync failure shouldn't block local deletion
       }
 
@@ -241,9 +241,9 @@ class StorageService {
       // Sync to Supabase (optional, will fail gracefully if offline)
       try {
         await supabaseService.syncDailySummary(storedSummary);
-        console.log('Daily summary synced to Supabase');
+        // Daily summary synced successfully
       } catch (syncError) {
-        console.warn('Failed to sync daily summary to Supabase:', syncError);
+        // Failed to sync daily summary - will retry on next operation
         // Continue execution - sync failure shouldn't block local storage
       }
     } catch (error) {
@@ -264,7 +264,7 @@ class StorageService {
         b.date.localeCompare(a.date)
       );
     } catch (error) {
-      console.error('Failed to get daily summaries:', error);
+      // Failed to get daily summaries
       return [];
     }
   }
@@ -278,7 +278,7 @@ class StorageService {
       const summaries = await this.getAllDailySummaries();
       return summaries.find(summary => summary.date === targetDate) || null;
     } catch (error) {
-      console.error('Failed to get daily summary for date:', error);
+      // Failed to get daily summary for date
       return null;
     }
   }
@@ -295,7 +295,7 @@ class StorageService {
         summary.date.startsWith(targetMonth)
       );
     } catch (error) {
-      console.error('Failed to get monthly summaries:', error);
+      // Failed to get monthly summaries
       return [];
     }
   }
@@ -339,7 +339,7 @@ class StorageService {
       await this.saveNotificationSettings(defaultSettings);
       return defaultSettings;
     } catch (error) {
-      console.error('Failed to get notification settings:', error);
+      // Failed to get notification settings
       // Return safe defaults
       return {
         enabled: false,
@@ -404,7 +404,7 @@ class StorageService {
         totalStorageSize,
       };
     } catch (error) {
-      console.error('Failed to get storage stats:', error);
+      // Failed to get storage stats
       return {
         totalActivityLogs: 0,
         totalDailySummaries: 0,
@@ -508,7 +508,7 @@ class StorageService {
       
       return removedCount;
     } catch (error) {
-      console.error('Failed to cleanup old data:', error);
+      // Failed to cleanup old data
       return 0;
     }
   }
@@ -538,7 +538,7 @@ class StorageService {
     try {
       await AsyncStorage.setItem(this.KEYS.LAST_SYNC, timestamp.toISOString());
     } catch (error) {
-      console.error('Failed to save last sync time:', error);
+      // Failed to save last sync time
     }
   }
 
@@ -550,7 +550,7 @@ class StorageService {
       const data = await AsyncStorage.getItem(this.KEYS.LAST_SYNC);
       return data ? parseISO(data) : null;
     } catch (error) {
-      console.error('Failed to get last sync time:', error);
+      // Failed to get last sync time
       return null;
     }
   }

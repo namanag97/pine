@@ -1,12 +1,13 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 
 import { TimeSlot, Activity } from '../types';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../styles/designSystem';
+import { Colors, Spacing, BorderRadius, Shadows } from '../styles/designSystem';
 import { getValueDisplayWithSign } from '../utils/indianNumberFormat';
+import { AppText, Stack, Card, Badge } from './ui';
 
 interface CalendarTimelineViewProps {
   timeSlots: TimeSlot[];
@@ -75,40 +76,47 @@ const CalendarTimelineView: React.FC<CalendarTimelineViewProps> = ({
     return (hour + minutes / 60) * HOUR_HEIGHT;
   };
 
+  const getTimeSlotVariant = (slot: TimeSlot) => {
+    const isCurrentSlot = isTimeSlotCurrent(slot);
+    const hasActivity = Boolean(slot.activity);
+    const value = slot.value;
+    
+    if (isCurrentSlot) {
+      return 'elevated';
+    } else if (hasActivity) {
+      if (value >= 10000) {
+        return 'elevated';
+      } else if (value > 0) {
+        return 'outlined';
+      } else {
+        return 'outlined';
+      }
+    }
+    
+    return 'default';
+  };
+  
   const getTimeSlotStyle = (slot: TimeSlot) => {
     const isCurrentSlot = isTimeSlotCurrent(slot);
     const hasActivity = Boolean(slot.activity);
     const value = slot.value;
     
-    let backgroundColor = Colors.mistGray;
-    let borderColor = 'transparent';
-    let borderWidth = 1;
+    const style: any = {};
     
     if (isCurrentSlot) {
-      backgroundColor = Colors.premiumGold + '20';
-      borderColor = Colors.premiumGold;
-      borderWidth = 2;
+      style.borderLeftWidth = 4;
+      style.borderLeftColor = Colors.warning[600];
     } else if (hasActivity) {
-      if (value >= 100000) {
-        backgroundColor = Colors.successGreen + '15';
-        borderColor = Colors.successGreen;
-      } else if (value >= 10000) {
-        backgroundColor = Colors.primaryBlue + '10';
-        borderColor = Colors.primaryBlue;
-      } else if (value > 0) {
-        backgroundColor = Colors.cloudWhite;
-        borderColor = Colors.shadowGray;
-      } else {
-        backgroundColor = '#FF6B6B20';
-        borderColor = '#FF6B6B';
+      if (value >= 10000) {
+        style.borderLeftWidth = 4;
+        style.borderLeftColor = Colors.success[600];
+      } else if (value < 0) {
+        style.borderLeftWidth = 4;
+        style.borderLeftColor = Colors.error[600];
       }
     }
     
-    return {
-      backgroundColor,
-      borderColor,
-      borderWidth,
-    };
+    return style;
   };
 
   const isTimeSlotCurrent = (slot: TimeSlot) => {
@@ -118,9 +126,9 @@ const CalendarTimelineView: React.FC<CalendarTimelineViewProps> = ({
 
   const renderHourHeader = (hour: number) => (
     <View key={`hour-${hour}`} style={styles.hourHeader}>
-      <Text style={styles.hourText}>
+      <AppText variant="caption" color="secondary" style={{ fontWeight: '600', width: 50 }}>
         {format(new Date().setHours(hour, 0), 'h a')}
-      </Text>
+      </AppText>
       <View style={styles.hourLine} />
     </View>
   );
@@ -128,58 +136,66 @@ const CalendarTimelineView: React.FC<CalendarTimelineViewProps> = ({
   const renderTimeSlot = (slot: TimeSlot, index: number) => {
     const isCurrentSlot = isTimeSlotCurrent(slot);
     const valueDisplay = slot.activity ? getValueDisplayWithSign(slot.value) : null;
-    const slotStyle = getTimeSlotStyle(slot);
+    const variant = getTimeSlotVariant(slot);
+    const customStyle = getTimeSlotStyle(slot);
     
     return (
-      <TouchableOpacity
+      <Card
         key={slot.id}
-        style={[styles.timeSlotContainer, slotStyle]}
+        variant={variant}
+        padding="small"
+        style={{
+          ...styles.timeSlotContainer,
+          ...customStyle
+        }}
         onPress={() => onTimeSlotPress(slot)}
-        activeOpacity={0.7}
+        accessibilityLabel={`${format(slot.startTime, 'h:mm a')} ${slot.activity ? slot.activity.name : 'empty slot'}`}
+        accessibilityRole="button"
       >
         {isCurrentSlot && (
-          <View style={styles.liveIndicator}>
-            <Text style={styles.liveText}>LIVE</Text>
-            <View style={styles.livePulse} />
-          </View>
+          <Badge 
+            variant="warning" 
+            size="small" 
+            style={styles.liveIndicator}
+          >
+            LIVE
+          </Badge>
         )}
         
-        <View style={styles.timeSlotContent}>
-          <Text style={styles.timeSlotTime}>
+        <Stack direction="horizontal" align="center" spacing="md">
+          <AppText variant="caption" color="secondary" style={{ fontWeight: '600', width: 60 }}>
             {format(slot.startTime, 'h:mm a')}
-          </Text>
+          </AppText>
           
           {slot.activity ? (
-            <View style={styles.activityContent}>
-              <View style={styles.activityRow}>
-                <Text style={styles.activityName} numberOfLines={2}>
+            <Stack spacing="xs" style={{ flex: 1 }}>
+              <Stack direction="horizontal" justify="space-between" align="center">
+                <AppText variant="bodySmall" color="primary" numberOfLines={2} style={{ fontWeight: '600', flex: 1 }}>
                   {getActivityEmoji(slot.activity)} {slot.activity.name}
-                </Text>
-                <View style={styles.syncIndicator}>
-                  <Ionicons name="cloud-done" size={12} color={Colors.successGreen} />
-                </View>
-              </View>
+                </AppText>
+                <Ionicons name="cloud-done" size={12} color={Colors.success[600]} />
+              </Stack>
               {valueDisplay && (
-                <Text style={[styles.activityValue, { color: valueDisplay.color }]}>
+                <AppText variant="numerical" style={{ color: valueDisplay.color, fontSize: 11 }}>
                   {valueDisplay.text}
-                </Text>
+                  {slot.value >= 10000 && ' ✨'}
+                </AppText>
               )}
-              {slot.value >= 10000 && <Text style={styles.sparkle}>✨</Text>}
-            </View>
+            </Stack>
           ) : (
-            <View style={styles.emptySlot}>
-              <Text style={styles.emptySlotText}>
+            <Stack direction="horizontal" justify="space-between" align="center" style={{ flex: 1 }}>
+              <AppText variant="bodySmall" color="tertiary" style={{ fontStyle: 'italic', flex: 1 }}>
                 {isCurrentSlot ? 'What are you doing now?' : 'Tap to log activity'}
-              </Text>
+              </AppText>
               <Ionicons 
                 name="add-circle-outline" 
                 size={16} 
-                color={Colors.shadowGray} 
+                color={Colors.neutral[400]} 
               />
-            </View>
+            </Stack>
           )}
-        </View>
-      </TouchableOpacity>
+        </Stack>
+      </Card>
     );
   };
 
@@ -235,158 +251,68 @@ const CalendarTimelineView: React.FC<CalendarTimelineViewProps> = ({
             scrollToCurrentTime();
             onScrollToNow();
           }}
+          accessibilityLabel="Scroll to current time"
+          accessibilityRole="button"
         >
-          <Ionicons name="time" size={20} color={Colors.cloudWhite} />
-          <Text style={styles.scrollToNowText}>NOW</Text>
+          <Ionicons name="time" size={20} color={Colors.neutral[50]} />
+          <AppText variant="caption" style={{ color: Colors.neutral[50], fontWeight: 'bold', marginLeft: 4 }}>
+            NOW
+          </AppText>
         </TouchableOpacity>
       )}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = {
   container: {
     flex: 1,
-    backgroundColor: Colors.skyBlue + '10',
+    backgroundColor: Colors.neutral[50],
   },
   scrollView: {
     flex: 1,
   },
   timeline: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xxl,
-    position: 'relative',
+    paddingBottom: Spacing['3xl'],
+    position: 'relative' as const,
   },
   hourBlock: {
-    marginBottom: Spacing.md, // Reduced from lg
+    marginBottom: Spacing.md,
   },
   hourHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.sm, // Reduced from md
-    paddingLeft: TIME_LABEL_WIDTH + Spacing.sm, // Adjusted
-  },
-  hourText: {
-    ...Typography.bodySmall,
-    color: Colors.shadowGray,
-    fontWeight: '600',
-    width: 50,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: Spacing.sm,
+    paddingLeft: TIME_LABEL_WIDTH + Spacing.sm,
   },
   hourLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.mistGray,
+    backgroundColor: Colors.neutral[200],
     marginLeft: Spacing.md,
   },
   timeSlotContainer: {
-    flexDirection: 'row',
-    marginBottom: Spacing.xs, // Reduced from sm
-    borderRadius: BorderRadius.small, // Reduced from medium
-    padding: Spacing.sm, // Reduced from md
-    ...Shadows.soft,
-    position: 'relative',
+    marginBottom: Spacing.xs,
+    position: 'relative' as const,
   },
   liveIndicator: {
-    position: 'absolute',
+    position: 'absolute' as const,
     top: -8,
     right: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.premiumGold,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    ...Shadows.medium,
-  },
-  liveText: {
-    ...Typography.caption,
-    color: Colors.cloudWhite,
-    fontWeight: 'bold',
-    fontSize: 10,
-  },
-  livePulse: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.cloudWhite,
-    marginLeft: 4,
-  },
-  timeSlotContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  timeSlotTime: {
-    ...Typography.caption, // Reduced from bodySmall
-    color: Colors.shadowGray,
-    width: TIME_LABEL_WIDTH,
-    fontWeight: '600',
-    fontSize: 11, // Reduced from 12
-  },
-  activityContent: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  activityRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  activityName: {
-    ...Typography.bodySmall, // Reduced from bodyLarge
-    color: Colors.primaryBlue,
-    fontWeight: '600',
-    lineHeight: 16, // Reduced from 20
-    fontSize: 13, // Explicit smaller size
-    flex: 1,
-  },
-  syncIndicator: {
-    marginLeft: Spacing.xs,
-    paddingTop: 2,
-  },
-  activityValue: {
-    ...Typography.caption, // Reduced from bodySmall
-    fontWeight: '600',
-    marginTop: 1, // Reduced from 2
-    fontSize: 11,
-  },
-  sparkle: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    fontSize: 16,
-  },
-  emptySlot: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginLeft: Spacing.md,
-  },
-  emptySlotText: {
-    ...Typography.bodySmall,
-    color: Colors.shadowGray,
-    fontStyle: 'italic',
-    flex: 1,
   },
   scrollToNowButton: {
-    position: 'absolute',
-    bottom: 100, // Changed from 20 to avoid bottom navigation
+    position: 'absolute' as const,
+    bottom: 100,
     right: 20,
-    backgroundColor: Colors.primaryBlue,
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: Colors.primary[500],
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 25,
     ...Shadows.medium,
   },
-  scrollToNowText: {
-    ...Typography.caption,
-    color: Colors.cloudWhite,
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
-});
+};
 
 export default CalendarTimelineView;

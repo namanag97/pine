@@ -1,265 +1,387 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, ScrollView, Alert, Animated, Share } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../styles/designSystem';
+import { 
+  Gradients, 
+  SemanticColors, 
+  Colors, 
+  Spacing, 
+  StatsTokens,
+  EnhancedAnimation
+} from '../styles/designSystem';
 import { storageService } from '../services/StorageService';
-import { timeSlotService } from '../services/TimeSlotService';
+import { statsService, PeriodStats } from '../services/StatsService';
 import { formatIndianNumber } from '../utils/indianNumberFormat';
+import { 
+  Container, 
+  Stack, 
+  AppText, 
+  Button,
+  Card,
+  StatsHeader,
+  TrendsChart,
+  ValueTierBreakdown,
+  KeyInsightsGrid,
+  EfficiencyMeter,
+  TrendsChartDataPoint,
+  InsightData,
+  SafeAreaContainer
+} from '../components/ui';
 
 interface StatsScreenProps {
   navigation: any;
 }
 
 const StatsScreen: React.FC<StatsScreenProps> = ({ navigation }) => {
-  const [dailyStats, setDailyStats] = useState({
-    totalHoursSpent: 0,
-    hoursWithZeroValue: 0,
-    totalValue: 0,
-    avgHourlyValue: 0,
-  });
+  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month'>('today');
+  const [stats, setStats] = useState<PeriodStats | null>(null);
+  const [trends, setTrends] = useState<TrendsChartDataPoint[]>([]);
+  const [insights, setInsights] = useState<InsightData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
 
   useEffect(() => {
-    loadStats();
-  }, []);
+    loadAllStats();
+  }, [selectedPeriod]);
 
-  const loadStats = async () => {
+  useEffect(() => {
+    if (!loading) {
+      // Staggered entrance animations
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: EnhancedAnimation.duration.normal,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: EnhancedAnimation.duration.normal,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [loading, fadeAnim, slideAnim]);
+
+  const loadAllStats = useCallback(async () => {
     try {
       setLoading(true);
-      const today = new Date();
+      const allLogs = await storageService.getAllActivityLogs();
       
-      // Generate time slots for today
-      const timeSlots = timeSlotService.generateTimeSlotsForDate(today);
-      
-      // Get stored activity logs for today
-      const storedLogs = await storageService.getActivityLogsForDate(today);
-      const populatedTimeSlots = timeSlots.map(slot => {
-        const log = storedLogs.find(l => l.id === slot.id);
-        if (log) {
-          const activity = { id: log.activityId, name: log.activityName, 
-                           hourlyValue: log.hourlyValue, blockValue: log.blockValue,
-                           category: '', searchTags: [] };
-          return timeSlotService.updateTimeSlotActivity(slot, activity);
-        }
-        return slot;
-      });
+      // Calculate comprehensive stats
+      const periodStats = await statsService.calculatePeriodStats(allLogs, selectedPeriod);
+      setStats(periodStats);
 
-      // Calculate stats
-      const filledSlots = populatedTimeSlots.filter(s => s.activity);
-      const zeroValueSlots = filledSlots.filter(s => s.value === 0);
-      const totalValue = filledSlots.reduce((sum, slot) => sum + slot.value, 0);
-      
-      setDailyStats({
-        totalHoursSpent: filledSlots.length,
-        hoursWithZeroValue: zeroValueSlots.length,
-        totalValue,
-        avgHourlyValue: filledSlots.length > 0 ? totalValue / filledSlots.length : 0,
-      });
+      // Calculate trends data
+      const trendsData = await statsService.calculateTrendsData(allLogs, selectedPeriod === 'today' ? 'week' : 'month');
+      setTrends(selectedPeriod === 'today' ? trendsData.daily : trendsData.monthly);
+
+      // Generate insights
+      const insightsData = await statsService.generateInsights(periodStats, selectedPeriod);
+      setInsights(insightsData);
       
     } catch (error) {
       console.error('Failed to load stats:', error);
+      Alert.alert('Error', 'Failed to load analytics data. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedPeriod]);
 
-  const StatCard: React.FC<{ title: string; value: string; subtitle: string; icon: string; color: string }> = ({
-    title, value, subtitle, icon, color
-  }) => (
-    <View style={[styles.statCard, { borderLeftColor: color, borderLeftWidth: 4 }]}>
-      <View style={styles.statHeader}>
-        <Ionicons name={icon as any} size={20} color={color} />
-        <Text style={styles.statTitle}>{title}</Text>
-      </View>
-      <Text style={[styles.statValue, { color }]}>{value}</Text>
-      <Text style={styles.statSubtitle}>{subtitle}</Text>
-    </View>
-  );
+  const getPeriodLabel = useMemo(() => {
+    switch (selectedPeriod) {
+      case 'week': return 'THIS WEEK';
+      case 'month': return 'THIS MONTH';
+      default: return 'TODAY';
+    }
+  }, [selectedPeriod]);
+
+  const handleExport = useCallback(async () => {
+    if (!stats) return;
+    
+    try {
+      const csvData = statsService.exportAsCSV(stats, getPeriodLabel);
+      // Implementation would handle actual file sharing
+      Alert.alert('Export Ready', 'CSV data prepared for export');
+    } catch (error) {
+      Alert.alert('Export Failed', 'Unable to export data. Please try again.');
+    }
+  }, [stats, getPeriodLabel]);
+
+  const handleShare = useCallback(async () => {
+    if (!stats) return;
+    
+    try {
+      // Create shareable text content
+      const shareText = `Pine Stats - ${getPeriodLabel}
+
+My productivity stats:
+• ${stats.totalHours}h logged
+• ₹${formatIndianNumber(stats.totalValue)} earned
+• ${stats.efficiency}% efficiency
+
+Generated with Pine 📊`;
+
+      // Use React Native's built-in Share API
+      const result = await Share.share({
+        message: shareText,
+        title: 'Pine Stats'
+      });
+
+      if (result.action === Share.sharedAction) {
+        // Content was successfully shared
+        console.log('Stats shared successfully');
+      }
+    } catch (error) {
+      Alert.alert('Share Failed', 'Unable to share stats. Please try again.');
+    }
+  }, [stats, getPeriodLabel]);
+
+  if (loading) {
+    return (
+      <LinearGradient colors={Gradients.skyGradient} style={styles.container}>
+        <SafeAreaContainer>
+          <Container padding="xl">
+            <AppText variant="bodyLarge" color="secondary" align="center">
+              Loading analytics...
+            </AppText>
+          </Container>
+        </SafeAreaContainer>
+      </LinearGradient>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <LinearGradient colors={Gradients.skyGradient} style={styles.container}>
+        <SafeAreaContainer>
+          <Container padding="xl">
+            <AppText variant="bodyLarge" color="secondary" align="center">
+              No data available for this period
+            </AppText>
+          </Container>
+        </SafeAreaContainer>
+      </LinearGradient>
+    );
+  }
 
   return (
-    <LinearGradient colors={Colors.skyGradient} style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primaryBlue} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>📊 Statistics</Text>
-          <View style={styles.placeholder} />
-        </View>
+    <LinearGradient colors={Gradients.skyGradient} style={styles.container}>
+      <SafeAreaContainer>
+        <Animated.View style={[
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }, 
+          styles.content
+        ]}>
+          {/* Enhanced Header with Export/Share */}
+          <StatsHeader
+            title="📊 Analytics"
+            subtitle={getPeriodLabel}
+            onBack={() => navigation.goBack()}
+            onExport={handleExport}
+            onShare={handleShare}
+            shareData={{
+              title: `Pine Stats - ${getPeriodLabel}`,
+              message: `My productivity: ${stats.totalHours}h, ₹${formatIndianNumber(stats.totalValue)}, ${stats.efficiency}% efficiency 📊`,
+            }}
+          />
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading statistics...</Text>
-            </View>
-          ) : (
-            <>
-              {/* Today's Overview */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>TODAY'S STATS</Text>
-                <View style={styles.statsGrid}>
-                  <StatCard
-                    title="Hours Spent"
-                    value={`${dailyStats.totalHoursSpent}`}
-                    subtitle="Total logged hours"
-                    icon="time-outline"
-                    color={Colors.primaryBlue}
-                  />
-                  <StatCard
-                    title="Zero Value Hours"
-                    value={`${dailyStats.hoursWithZeroValue}`}
-                    subtitle="No value activities"
-                    icon="close-circle-outline"
-                    color={Colors.warningAmber}
-                  />
-                  <StatCard
-                    title="Total Value"
-                    value={`₹${formatIndianNumber(dailyStats.totalValue)}`}
-                    subtitle="Today's earnings"
-                    icon="trending-up"
-                    color={Colors.successGreen}
-                  />
-                  <StatCard
-                    title="Avg/Hour"
-                    value={`₹${formatIndianNumber(Math.round(dailyStats.avgHourlyValue))}`}
-                    subtitle="Per hour rate"
-                    icon="calculator"
-                    color={Colors.premiumGold}
-                  />
-                </View>
-              </View>
+          {/* Period Selector */}
+          <Container padding="lg">
+            <Stack direction="horizontal" spacing="sm" justify="center">
+              {(['today', 'week', 'month'] as const).map((period) => (
+                <Button
+                  key={period}
+                  variant={selectedPeriod === period ? 'primary' : 'ghost'}
+                  onPress={() => setSelectedPeriod(period)}
+                  style={{ flex: 1 }}
+                >
+                  {period === 'today' ? 'Today' : period === 'week' ? 'Week' : 'Month'}
+                </Button>
+              ))}
+            </Stack>
+          </Container>
 
-              {/* Coming Soon */}
-              <View style={styles.comingSoonCard}>
-                <Ionicons name="analytics" size={40} color={Colors.shadowGray} />
-                <Text style={styles.comingSoonTitle}>Advanced Analytics Coming Soon</Text>
-                <Text style={styles.comingSoonText}>
-                  • Weekly & monthly trends{'\n'}
-                  • Activity category breakdowns{'\n'}
-                  • Goal tracking & achievements{'\n'}
-                  • Detailed time analysis
-                </Text>
-              </View>
-            </>
-          )}
-        </ScrollView>
-      </SafeAreaView>
+          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+            {/* Key Insights Grid */}
+            <Container padding="lg">
+              <KeyInsightsGrid
+                insights={insights}
+                columns={2}
+                spacing={Spacing.md}
+              />
+            </Container>
+
+            {/* Efficiency Meter */}
+            <Container padding="lg">
+              <EfficiencyMeter
+                percentage={stats.efficiency}
+                label="PRODUCTIVITY"
+                subtitle={`${stats.totalHours - stats.zeroValueHours} productive hours`}
+                animated
+              />
+            </Container>
+
+            {/* Trends Chart */}
+            {trends.length > 0 && (
+              <Container padding="lg">
+                <Stack spacing="md">
+                  <AppText variant="heading3" color="primary">
+                    📈 Trends
+                  </AppText>
+                  <Card variant="elevated" padding="large">
+                    <TrendsChart
+                      data={trends}
+                      height={200}
+                      animated
+                      showLabels
+                      onBarPress={(dataPoint) => {
+                        Alert.alert(
+                          'Trend Detail',
+                          `${dataPoint.label}: ₹${formatIndianNumber(dataPoint.value)}`
+                        );
+                      }}
+                    />
+                  </Card>
+                </Stack>
+              </Container>
+            )}
+
+            {/* Value Tier Breakdown */}
+            <Container padding="lg">
+              <Stack spacing="md">
+                <AppText variant="heading3" color="primary">
+                  🎯 Value Distribution
+                </AppText>
+                <ValueTierBreakdown
+                  data={stats.valueBreakdown}
+                  showEmpty={false}
+                  animated
+                />
+              </Stack>
+            </Container>
+
+            {/* Top Activities */}
+            {stats.topActivity && (
+              <Container padding="lg">
+                <Stack spacing="md">
+                  <AppText variant="heading3" color="primary">
+                    🏆 Top Activities
+                  </AppText>
+                  
+                  {/* Highlighted Top Activity */}
+                  <Card variant="elevated" padding="large">
+                    <Stack spacing="sm">
+                      <AppText variant="label" color="secondary">
+                        HIGHEST VALUE
+                      </AppText>
+                      <Stack direction="horizontal" justify="space-between" align="center">
+                        <Stack>
+                          <AppText variant="heading4" color="primary" style={{ fontWeight: '700' }}>
+                            {stats.topActivity.name}
+                          </AppText>
+                          <AppText variant="bodySmall" color="secondary">
+                            {stats.topActivity.hours} hours • ₹{formatIndianNumber(Math.round(stats.topActivity.value / stats.topActivity.hours))}/hr
+                          </AppText>
+                        </Stack>
+                        <AppText variant="numericalLarge" color="success">
+                          ₹{formatIndianNumber(stats.topActivity.value)}
+                        </AppText>
+                      </Stack>
+                    </Stack>
+                  </Card>
+
+                  {/* Activity Ranking List */}
+                  <Stack spacing="sm">
+                    {statsService.generateActivityRanking(stats.activityBreakdown).map((activity) => (
+                      <Card key={activity.name} variant="outlined" padding="medium">
+                        <Stack direction="horizontal" justify="space-between" align="center">
+                          <Stack>
+                            <Stack direction="horizontal" align="center" spacing="sm">
+                              <AppText variant="bodySmall" color="secondary" style={{ fontWeight: '600' }}>
+                                #{activity.rank}
+                              </AppText>
+                              <AppText variant="bodyLarge" color="primary" style={{ fontWeight: '600' }}>
+                                {activity.name}
+                              </AppText>
+                            </Stack>
+                            <AppText variant="bodySmall" color="secondary">
+                              {activity.hours}h • {activity.sessions} sessions • ₹{formatIndianNumber(activity.avgSessionValue)}/session
+                            </AppText>
+                          </Stack>
+                          <AppText variant="numerical" color="success">
+                            ₹{formatIndianNumber(activity.value)}
+                          </AppText>
+                        </Stack>
+                      </Card>
+                    ))}
+                  </Stack>
+                </Stack>
+              </Container>
+            )}
+
+            {/* Period Summary */}
+            <Container padding="lg">
+              <Card variant="outlined" padding="large">
+                <Stack spacing="md">
+                  <AppText variant="heading4" color="primary">
+                    📋 Period Summary
+                  </AppText>
+                  <Stack spacing="xs">
+                    <Stack direction="horizontal" justify="space-between">
+                      <AppText variant="bodyRegular" color="secondary">Total Hours</AppText>
+                      <AppText variant="numerical" color="primary">{stats.totalHours}h</AppText>
+                    </Stack>
+                    <Stack direction="horizontal" justify="space-between">
+                      <AppText variant="bodyRegular" color="secondary">Total Value</AppText>
+                      <AppText variant="numerical" color="success">₹{formatIndianNumber(stats.totalValue)}</AppText>
+                    </Stack>
+                    <Stack direction="horizontal" justify="space-between">
+                      <AppText variant="bodyRegular" color="secondary">Average Rate</AppText>
+                      <AppText variant="numerical" color="primary">₹{formatIndianNumber(Math.round(stats.avgHourlyValue))}/hr</AppText>
+                    </Stack>
+                    <Stack direction="horizontal" justify="space-between">
+                      <AppText variant="bodyRegular" color="secondary">High-Value Hours</AppText>
+                      <AppText variant="numerical" color="success">{stats.highValueHours}h</AppText>
+                    </Stack>
+                    {stats.weeklyGrowth !== 0 && (
+                      <Stack direction="horizontal" justify="space-between">
+                        <AppText variant="bodyRegular" color="secondary">Weekly Growth</AppText>
+                        <AppText 
+                          variant="numerical" 
+                          color={stats.weeklyGrowth > 0 ? 'success' : 'error'}
+                        >
+                          {stats.weeklyGrowth > 0 ? '+' : ''}{stats.weeklyGrowth}%
+                        </AppText>
+                      </Stack>
+                    )}
+                  </Stack>
+                </Stack>
+              </Card>
+            </Container>
+
+            {/* Bottom Padding */}
+            <View style={{ height: Spacing['4xl'] }} />
+          </ScrollView>
+        </Animated.View>
+      </SafeAreaContainer>
     </LinearGradient>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = {
   container: {
     flex: 1,
   },
-  safeArea: {
+  content: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.cloudWhite + '90',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.mistGray,
-  },
-  backButton: {
-    padding: Spacing.sm,
-  },
-  headerTitle: {
-    ...Typography.headline,
-    color: Colors.primaryBlue,
-    fontWeight: 'bold',
-  },
-  placeholder: {
-    width: 40, // Same width as back button for centering
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: Spacing.lg,
   },
-  section: {
-    marginTop: Spacing.lg,
-  },
-  sectionTitle: {
-    ...Typography.bodySmall,
-    color: Colors.primaryBlue,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: Spacing.md,
-    textTransform: 'uppercase',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  statCard: {
-    backgroundColor: Colors.cloudWhite,
-    borderRadius: BorderRadius.medium,
-    padding: Spacing.md,
-    width: '48%',
-    marginBottom: Spacing.md,
-    ...Shadows.soft,
-  },
-  statHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  statTitle: {
-    ...Typography.bodySmall,
-    color: Colors.shadowGray,
-    marginLeft: Spacing.sm,
-    fontWeight: '500',
-  },
-  statValue: {
-    ...Typography.headline,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  statSubtitle: {
-    ...Typography.caption,
-    color: Colors.shadowGray,
-  },
-  comingSoonCard: {
-    backgroundColor: Colors.cloudWhite,
-    borderRadius: BorderRadius.medium,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.xxl,
-    ...Shadows.soft,
-  },
-  comingSoonTitle: {
-    ...Typography.bodyLarge,
-    color: Colors.primaryBlue,
-    fontWeight: 'bold',
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  comingSoonText: {
-    ...Typography.bodySmall,
-    color: Colors.shadowGray,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: Spacing.xxl,
-  },
-  loadingText: {
-    ...Typography.bodyLarge,
-    color: Colors.shadowGray,
-    textAlign: 'center',
-  },
-});
+};
 
 export default StatsScreen;

@@ -18,7 +18,7 @@ export default function App() {
           timeSlot,
           onActivitySelected: () => {
             // Navigate back to dashboard after selecting activity
-            navigationRef.current?.navigate('Main');
+            navigationRef.current?.navigate('Main' as any);
           },
         });
       }

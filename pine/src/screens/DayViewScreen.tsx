@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { format, parseISO, addDays, subDays } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,8 +8,16 @@ import { TimeSlot, Activity, DailyLog } from '../types';
 import { timeSlotService } from '../services/TimeSlotService';
 import { storageService } from '../services/StorageService';
 import { activityService } from '../services/ActivityService';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../styles/designSystem';
+import { Gradients, Colors, Spacing } from '../styles/designSystem';
 import { getValueDisplayWithSign } from '../utils/indianNumberFormat';
+import { 
+  Container, 
+  Stack, 
+  AppText, 
+  Card, 
+  StatCard,
+  SafeAreaContainer
+} from '../components/ui';
 
 const DayViewScreen = ({ route, navigation }: any) => {
   const [selectedDate, setSelectedDate] = useState<Date>(
@@ -68,7 +76,7 @@ const DayViewScreen = ({ route, navigation }: any) => {
       setDailyLog(log);
       
     } catch (error) {
-      console.error('Failed to load day data:', error);
+      // Handle day data loading failure - show user-friendly error
       Alert.alert('Error', 'Failed to load day data');
     } finally {
       setLoading(false);
@@ -104,7 +112,7 @@ const DayViewScreen = ({ route, navigation }: any) => {
       // Reload data to reflect changes
       await loadDayData();
     } catch (error) {
-      console.error('Failed to update time slot:', error);
+      // Handle time slot update failure - show user-friendly error
       Alert.alert('Error', 'Failed to update activity');
     }
   };
@@ -114,195 +122,161 @@ const DayViewScreen = ({ route, navigation }: any) => {
       timeSlotService.formatTimeSlotDisplay(timeSlot);
     
     const valueDisplay = getValueDisplayWithSign(timeSlot.value);
-
-    const backgroundColor = timeSlot.activity 
-      ? (timeSlot.value >= 10000 ? '#F0FDF4' : 
-         timeSlot.value >= 0 ? Colors.cloudWhite : '#FEF2F2')
-      : '#F9FAFB';
-      
-    const borderColor = timeSlot.activity 
-      ? (timeSlot.value >= 10000 ? Colors.successGreen :
-         timeSlot.value >= 0 ? Colors.primaryBlue : Colors.dangerRed)
-      : '#E5E7EB';
+    const isHighValue = timeSlot.value >= 10000;
+    const hasActivity = !!timeSlot.activity;
+    const isNegativeValue = timeSlot.value < 0;
 
     return (
-      <TouchableOpacity
-        style={[styles.timeSlotCard, { backgroundColor, borderColor }]}
-        onPress={() => handleTimeSlotPress(timeSlot)}
-      >
-        <View style={styles.timeSlotContent}>
-          <Text style={styles.timeRange}>{timeRange}</Text>
-          <Text style={[styles.activityName, { 
-            color: timeSlot.activity ? Colors.primaryBlue : Colors.shadowGray 
-          }]}>
-            {activityName}
-          </Text>
-          <View style={styles.valueRow}>
-            <Text style={[styles.valueText, { 
-              color: valueDisplay.color
-            }]}>
-              {valueDisplay.text}
-            </Text>
-            <Text style={styles.statusText}>{statusText}</Text>
-          </View>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={Colors.shadowGray} />
-      </TouchableOpacity>
+      <Container padding="md">
+        <Card 
+          variant={hasActivity ? "elevated" : "outlined"} 
+          padding="medium" 
+          onPress={() => handleTimeSlotPress(timeSlot)}
+          style={{
+            ...(isHighValue && { borderLeftWidth: 4, borderLeftColor: Colors.success[600] }),
+            ...(isNegativeValue && hasActivity && { borderLeftWidth: 4, borderLeftColor: Colors.error[600] })
+          }}
+          accessibilityLabel={`${timeRange} ${hasActivity ? activityName : 'No activity'} ${valueDisplay.text}`}
+          accessibilityRole="button"
+        >
+          <Stack direction="horizontal" justify="space-between" align="center">
+            <Stack spacing="xs" style={{ flex: 1 }}>
+              <AppText variant="bodyLarge" color="primary" style={{ fontWeight: '600' }}>
+                {timeRange}
+              </AppText>
+              
+              <AppText 
+                variant="bodyRegular" 
+                color={hasActivity ? "primary" : "tertiary"}
+                style={{ fontWeight: hasActivity ? '500' : 'normal' }}
+              >
+                {activityName}
+              </AppText>
+              
+              <Stack direction="horizontal" justify="space-between" align="center">
+                <AppText variant="numerical" style={{ color: valueDisplay.color }}>
+                  {valueDisplay.text}
+                  {isHighValue && ' ✨'}
+                </AppText>
+                <AppText variant="caption" color="tertiary">
+                  {statusText}
+                </AppText>
+              </Stack>
+            </Stack>
+            
+            <View style={{ marginLeft: Spacing.sm }}>
+              <Ionicons name="chevron-forward" size={20} color={Colors.neutral[400]} />
+            </View>
+          </Stack>
+        </Card>
+      </Container>
     );
   };
 
   const isToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
 
   return (
-    <LinearGradient colors={Colors.cloudGradient} style={styles.container}>
-      {/* Date Navigation Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigateDay('prev')}>
-          <Ionicons name="chevron-back" size={24} color={Colors.primaryBlue} />
-        </TouchableOpacity>
-        
-        <Text style={styles.dateText}>
-          {format(selectedDate, 'EEEE, MMMM d, yyyy')}
-          {isToday && <Text style={styles.todayIndicator}> (Today)</Text>}
-        </Text>
-        
-        <TouchableOpacity onPress={() => navigateDay('next')}>
-          <Ionicons name="chevron-forward" size={24} color={Colors.primaryBlue} />
-        </TouchableOpacity>
-      </View>
+    <LinearGradient colors={Gradients.cloudGradient} style={styles.container}>
+      <SafeAreaContainer>
+        {/* Header with Back Button */}
+        <Container padding="lg">
+          <Stack direction="horizontal" align="center" justify="space-between">
+            <TouchableOpacity 
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.primary[500]} />
+            </TouchableOpacity>
+            <AppText variant="heading2" color="primary" align="center">
+              📅 Day View
+            </AppText>
+            <View style={styles.placeholder} />
+          </Stack>
+        </Container>
 
-      {/* Daily Total */}
-      <View style={styles.dailyTotalCard}>
-        <Text style={styles.dailyTotalLabel}>Daily Total</Text>
-        <Text style={[styles.dailyTotalValue, { 
-          color: getValueDisplayWithSign(dailyLog?.totalValue || 0).color
-        }]}>
-          {getValueDisplayWithSign(dailyLog?.totalValue || 0).text}
-        </Text>
-        <Text style={styles.dailyTotalSub}>
-          {dailyLog?.completedSlots || 0} of {timeSlots.length} slots filled
-        </Text>
-      </View>
+        {/* Date Navigation */}
+        <Container padding="lg">
+          <Card variant="outlined" padding="medium">
+            <Stack direction="horizontal" align="center" justify="space-between">
+              <TouchableOpacity 
+                onPress={() => navigateDay('prev')}
+                accessibilityLabel="Previous day"
+                accessibilityRole="button"
+              >
+                <Ionicons name="chevron-back" size={24} color={Colors.primary[500]} />
+              </TouchableOpacity>
+              
+              <Stack align="center">
+                <AppText variant="heading3" color="primary" align="center">
+                  {format(selectedDate, 'EEEE, MMMM d')}
+                </AppText>
+                <AppText variant="bodySmall" color="secondary" align="center">
+                  {format(selectedDate, 'yyyy')}
+                  {isToday && ' • Today'}
+                </AppText>
+              </Stack>
+              
+              <TouchableOpacity 
+                onPress={() => navigateDay('next')}
+                accessibilityLabel="Next day"
+                accessibilityRole="button"
+              >
+                <Ionicons name="chevron-forward" size={24} color={Colors.primary[500]} />
+              </TouchableOpacity>
+            </Stack>
+          </Card>
+        </Container>
 
-      {/* Time Slots List */}
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={timeSlots}
-          renderItem={renderTimeSlot}
-          keyExtractor={(item) => item.id}
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+        {/* Daily Summary */}
+        <Container padding="lg">
+          <StatCard
+            title="📊 Daily Summary"
+            value={getValueDisplayWithSign(dailyLog?.totalValue || 0).text}
+            subtitle={`${dailyLog?.completedSlots || 0} of ${timeSlots.length} slots completed`}
+            icon="trending-up"
+            color={getValueDisplayWithSign(dailyLog?.totalValue || 0).color}
+          />
+        </Container>
+
+        {/* Time Slots List */}
+        {loading ? (
+          <Container padding="xl">
+            <Stack align="center" spacing="md">
+              <ActivityIndicator size="large" color={Colors.primary[500]} />
+              <AppText variant="bodyLarge" color="secondary" align="center">
+                Loading time slots...
+              </AppText>
+            </Stack>
+          </Container>
+        ) : (
+          <FlatList
+            data={timeSlots}
+            renderItem={renderTimeSlot}
+            keyExtractor={(item) => item.id}
+            style={styles.list}
+            showsVerticalScrollIndicator={false}
+            contentInsetAdjustmentBehavior="automatic"
+            accessibilityLabel="Time slots list"
+          />
+        )}
+      </SafeAreaContainer>
     </LinearGradient>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = {
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.lg,
-    backgroundColor: Colors.cloudWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.mistGray,
+  backButton: {
+    padding: Spacing.sm,
   },
-  dateText: {
-    ...Typography.headline,
-    color: Colors.primaryBlue,
-    fontWeight: '600',
-  },
-  todayIndicator: {
-    color: Colors.primaryBlue,
-    ...Typography.bodyLarge,
-    fontWeight: 'normal',
-  },
-  dailyTotalCard: {
-    backgroundColor: Colors.cloudWhite,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.mistGray,
-    ...Shadows.soft,
-  },
-  dailyTotalLabel: {
-    ...Typography.bodyLarge, // Changed from bodySmall for better hierarchy
-    color: Colors.primaryBlue, // Changed from shadowGray for better contrast
-    marginBottom: 6, // Increased spacing
-    fontWeight: '600', // Added weight for prominence
-    fontSize: 16, // Explicit size for labels
-  },
-  dailyTotalValue: {
-    ...Typography.displayLarge,
-    fontWeight: 'bold',
-    marginBottom: 6, // Increased spacing
-  },
-  dailyTotalSub: {
-    ...Typography.bodyLarge, // Changed from caption for better readability
-    color: '#6B7280', // Darker gray for better contrast
-    fontSize: 14, // Larger size for better readability
-    fontWeight: '500', // Added weight for better visibility
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    ...Typography.bodyLarge,
-    color: Colors.shadowGray,
+  placeholder: {
+    width: 40, // Same width as back button for centering
   },
   list: {
     flex: 1,
   },
-  listContent: {
-    padding: Spacing.xl,
-  },
-  timeSlotCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.medium,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-    ...Shadows.soft,
-  },
-  timeSlotContent: {
-    flex: 1,
-  },
-  timeRange: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: Colors.primaryBlue,
-    marginBottom: 4,
-  },
-  activityName: {
-    ...Typography.bodyLarge,
-    marginBottom: 4,
-  },
-  valueRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  valueText: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-  },
-  statusText: {
-    ...Typography.caption,
-    color: Colors.shadowGray,
-  },
-});
+};
 
 export default DayViewScreen;

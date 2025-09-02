@@ -8,6 +8,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import StatsScreen from '../screens/StatsScreen';
 import ActivitySelectionScreen from '../screens/ActivitySelectionScreen';
 import ActivityLogScreen from '../screens/ActivityLogScreen';
+import DataSyncScreen from '../screens/DataSyncScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -69,6 +70,17 @@ const AppNavigator = React.forwardRef<any, {}>((_, ref) => {
           component={ActivityLogScreen}
           options={{
             title: 'Activity History',
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        
+        {/* Data Sync Screen */}
+        <Stack.Screen
+          name="DataSync"
+          component={DataSyncScreen}
+          options={{
+            title: 'Data Sync',
             presentation: 'modal',
             headerShown: false,
           }}

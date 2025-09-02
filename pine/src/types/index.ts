@@ -100,48 +100,119 @@ export interface AppConfig {
 
 // Storage interfaces
 export interface StoredActivityLog {
-  id: string;
-  activityName: string;
-  activityId: string;
-  hourlyValue: number;
-  blockValue: number;
-  timeSlotStart: string; // ISO string
-  timeSlotEnd: string; // ISO string
-  loggedAt: string; // ISO string
-  deviceId?: string;
+  readonly id: string;
+  readonly activityName: string;
+  readonly activityId: string;
+  readonly hourlyValue: number;
+  readonly blockValue: number;
+  readonly timeSlotStart: string; // ISO string
+  readonly timeSlotEnd: string; // ISO string
+  readonly loggedAt: string; // ISO string
+  readonly deviceId?: string;
 }
 
+// Type guard for StoredActivityLog
+export const isValidStoredActivityLog = (obj: any): obj is StoredActivityLog => {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    typeof obj.id === 'string' &&
+    typeof obj.activityName === 'string' &&
+    typeof obj.activityId === 'string' &&
+    typeof obj.hourlyValue === 'number' &&
+    typeof obj.blockValue === 'number' &&
+    typeof obj.timeSlotStart === 'string' &&
+    typeof obj.timeSlotEnd === 'string' &&
+    typeof obj.loggedAt === 'string' &&
+    (obj.deviceId === undefined || typeof obj.deviceId === 'string')
+  );
+};
+
 export interface StoredDailySummary {
-  id: string;
-  date: string; // YYYY-MM-DD
-  totalValue: number;
-  activityCount: number;
-  computedAt: string; // ISO string
-  deviceId?: string;
+  readonly id: string;
+  readonly date: string; // YYYY-MM-DD format
+  readonly totalValue: number;
+  readonly activityCount: number;
+  readonly computedAt: string; // ISO string
+  readonly deviceId?: string;
 }
+
+// Type guard for StoredDailySummary
+export const isValidStoredDailySummary = (obj: any): obj is StoredDailySummary => {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    typeof obj.id === 'string' &&
+    typeof obj.date === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(obj.date) && // Validate YYYY-MM-DD format
+    typeof obj.totalValue === 'number' &&
+    typeof obj.activityCount === 'number' &&
+    typeof obj.computedAt === 'string' &&
+    (obj.deviceId === undefined || typeof obj.deviceId === 'string')
+  );
+};
 
 // Removed unused UI Component Props interfaces
 
 // Search and Filter types
-export interface SearchFilters {
-  query: string;
-  categoryFilter: string | null;
-  valueRangeFilter: { min: number; max: number } | null;
-  sortBy: 'name' | 'value' | 'category';
-  sortOrder: 'asc' | 'desc';
+// Enhanced search and filter types with better constraints
+export type SortBy = 'name' | 'value' | 'category';
+export type SortOrder = 'asc' | 'desc';
+
+export interface ValueRange {
+  readonly min: number;
+  readonly max: number;
 }
 
-// Navigation types - Simplified to single stack navigator
+export interface SearchFilters {
+  readonly query: string;
+  readonly categoryFilter: string | null;
+  readonly valueRangeFilter: ValueRange | null;
+  readonly sortBy: SortBy;
+  readonly sortOrder: SortOrder;
+}
+
+// Type guard for SearchFilters
+export const isValidSearchFilters = (obj: any): obj is SearchFilters => {
+  const validSortBy = ['name', 'value', 'category'];
+  const validSortOrder = ['asc', 'desc'];
+  
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    typeof obj.query === 'string' &&
+    (obj.categoryFilter === null || typeof obj.categoryFilter === 'string') &&
+    (obj.valueRangeFilter === null || (
+      typeof obj.valueRangeFilter === 'object' &&
+      typeof obj.valueRangeFilter.min === 'number' &&
+      typeof obj.valueRangeFilter.max === 'number'
+    )) &&
+    validSortBy.includes(obj.sortBy) &&
+    validSortOrder.includes(obj.sortOrder)
+  );
+};
+
+// Navigation types - Enhanced with better type safety
 export type RootStackParamList = {
-  Main: undefined;
+  Main: { selectedDate?: string }; // ISO date string
   Settings: undefined;
   Stats: undefined;
+  DataSync: undefined;
   ActivitySelection: {
     timeSlot: TimeSlot;
-    onActivitySelected: (activity: Activity) => void;
+    onActivitySelected: (activity: Activity | null) => void;
   };
   ActivityLog: undefined;
+  DayView: { selectedDate?: string }; // ISO date string
 };
+
+// Screen navigation props for better type safety
+export interface ScreenNavigationProps<T extends keyof RootStackParamList> {
+  navigation: any; // TODO: Replace with proper navigation type
+  route: {
+    params?: RootStackParamList[T];
+  };
+}
 
 // API Response types (for Supabase)
 export interface SupabaseActivityLog {

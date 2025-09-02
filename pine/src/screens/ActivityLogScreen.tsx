@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  Alert, TextInput, RefreshControl, ActivityIndicator 
+  View, FlatList, TouchableOpacity, 
+  Alert, RefreshControl, ActivityIndicator 
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { format, parseISO } from 'date-fns';
@@ -9,8 +9,17 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { StoredActivityLog } from '../types';
 import { storageService } from '../services/StorageService';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../styles/designSystem';
+import { Gradients, Colors, Spacing } from '../styles/designSystem';
 import { getValueDisplayWithSign } from '../utils/indianNumberFormat';
+import { 
+  Container, 
+  Stack, 
+  AppText, 
+  Card, 
+  StatCard,
+  SearchInput,
+  SafeAreaContainer
+} from '../components/ui';
 
 const ActivityLogScreen = ({ navigation }: any) => {
   const [allLogs, setAllLogs] = useState<StoredActivityLog[]>([]);
@@ -39,7 +48,7 @@ const ActivityLogScreen = ({ navigation }: any) => {
       
       setAllLogs(sortedLogs);
     } catch (error) {
-      console.error('Failed to load activity logs:', error);
+      // Failed to load activity logs
       Alert.alert('Error', 'Failed to load activity logs');
     } finally {
       setLoading(false);
@@ -48,23 +57,41 @@ const ActivityLogScreen = ({ navigation }: any) => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadAllLogs();
-    setRefreshing(false);
+    try {
+      await loadAllLogs();
+    } catch (error) {
+      // Failed to refresh logs
+      Alert.alert('Refresh Failed', 'Unable to refresh activity logs. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const filterLogs = () => {
-    if (!searchQuery.trim()) {
-      setFilteredLogs(allLogs);
-      return;
-    }
+    try {
+      if (!searchQuery.trim()) {
+        setFilteredLogs(allLogs);
+        return;
+      }
 
-    const query = searchQuery.toLowerCase();
-    const filtered = allLogs.filter(log =>
-      log.activityName.toLowerCase().includes(query) ||
-      format(parseISO(log.timeSlotStart), 'MMM dd, yyyy').toLowerCase().includes(query)
-    );
-    
-    setFilteredLogs(filtered);
+      const query = searchQuery.toLowerCase();
+      const filtered = allLogs.filter(log => {
+        try {
+          return log.activityName.toLowerCase().includes(query) ||
+            format(parseISO(log.timeSlotStart), 'MMM dd, yyyy').toLowerCase().includes(query);
+        } catch (dateError) {
+          // Invalid date format in log entry
+          // Include logs with invalid dates in search if activity name matches
+          return log.activityName.toLowerCase().includes(query);
+        }
+      });
+      
+      setFilteredLogs(filtered);
+    } catch (error) {
+      // Error filtering logs
+      // Fallback to showing all logs if filtering fails
+      setFilteredLogs(allLogs);
+    }
   };
 
   const handleDeleteLog = async (logId: string) => {
@@ -80,8 +107,24 @@ const ActivityLogScreen = ({ navigation }: any) => {
             try {
               await storageService.deleteActivityLog(logId);
               await loadAllLogs();
+              // Provide success feedback
+              Alert.alert('Success', 'Activity log deleted successfully');
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete activity log');
+              // Failed to delete activity log
+              Alert.alert(
+                'Delete Failed', 
+                'Unable to delete the activity log. Please try again.', 
+                [
+                  { text: 'OK' },
+                  { 
+                    text: 'Retry', 
+                    onPress: () => {
+                      // Retry the deletion
+                      handleDeleteLog(logId);
+                    } 
+                  }
+                ]
+              );
             }
           },
         },
@@ -92,33 +135,43 @@ const ActivityLogScreen = ({ navigation }: any) => {
   const renderLogItem = ({ item }: { item: StoredActivityLog }) => {
     const startTime = parseISO(item.timeSlotStart);
     const valueDisplay = getValueDisplayWithSign(item.blockValue);
+    const isHighValue = item.blockValue >= 10000;
     
     return (
-      <View style={[styles.logItem, item.blockValue >= 10000 && styles.highValueItem]}>
-        <View style={styles.logContent}>
-          <View style={styles.logHeader}>
-            <Text style={styles.activityName}>{item.activityName}</Text>
-            <Text style={[styles.value, { color: valueDisplay.color }]}>
-              {valueDisplay.text}
-              {item.blockValue >= 10000 && ' ✨'}
-            </Text>
-          </View>
-          
-          <View style={styles.logDetails}>
-            <Text style={styles.timeInfo}>
-              📅 {format(startTime, 'MMM dd, yyyy')} • 
-              ⏰ {format(startTime, 'h:mm a')} - {format(parseISO(item.timeSlotEnd), 'h:mm a')}
-            </Text>
-          </View>
-        </View>
-        
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => handleDeleteLog(item.id)}
+      <Container padding="md">
+        <Card 
+          variant={isHighValue ? "elevated" : "outlined"} 
+          padding="medium" 
+          style={isHighValue ? { borderLeftWidth: 4, borderLeftColor: Colors.success[600] } : undefined}
         >
-          <Ionicons name="trash-outline" size={20} color={Colors.dangerRed} />
-        </TouchableOpacity>
-      </View>
+          <Stack direction="horizontal" justify="space-between" align="center">
+            <Stack spacing="xs" style={{ flex: 1 }}>
+              <Stack direction="horizontal" justify="space-between" align="center">
+                <AppText variant="bodyLarge" color="primary" style={{ fontWeight: '600', flex: 1 }}>
+                  {item.activityName}
+                </AppText>
+                <AppText variant="numerical" style={{ color: valueDisplay.color }}>
+                  {valueDisplay.text}
+                  {isHighValue && ' ✨'}
+                </AppText>
+              </Stack>
+              
+              <AppText variant="bodySmall" color="secondary">
+                📅 {format(startTime, 'MMM dd, yyyy')} • ⏰ {format(startTime, 'h:mm a')} - {format(parseISO(item.timeSlotEnd), 'h:mm a')}
+              </AppText>
+            </Stack>
+            
+            <TouchableOpacity
+              onPress={() => handleDeleteLog(item.id)}
+              style={{ padding: Spacing.sm, marginLeft: Spacing.sm }}
+              accessibilityLabel={`Delete ${item.activityName} activity`}
+              accessibilityRole="button"
+            >
+              <Ionicons name="trash-outline" size={20} color={Colors.error[600]} />
+            </TouchableOpacity>
+          </Stack>
+        </Card>
+      </Container>
     );
   };
 
@@ -130,229 +183,103 @@ const ActivityLogScreen = ({ navigation }: any) => {
 
   if (loading) {
     return (
-      <LinearGradient colors={Colors.skyGradient} style={styles.container}>
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primaryBlue} />
-          <Text style={styles.loadingText}>Loading activity logs...</Text>
-        </View>
+      <LinearGradient colors={Gradients.skyGradient} style={styles.container}>
+        <Container padding="xl">
+          <Stack align="center" spacing="md">
+            <ActivityIndicator size="large" color={Colors.primary[500]} />
+            <AppText variant="bodyLarge" color="secondary" align="center">
+              Loading activity logs...
+            </AppText>
+          </Stack>
+        </Container>
       </LinearGradient>
     );
   }
 
   return (
-    <LinearGradient colors={Colors.skyGradient} style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.primaryBlue} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Activity Log</Text>
-        <View style={styles.headerRight} />
-      </View>
+    <LinearGradient colors={Gradients.skyGradient} style={styles.container}>
+      <SafeAreaContainer>
+        {/* Header */}
+        <Container padding="lg">
+          <Stack direction="horizontal" align="center" justify="space-between">
+            <TouchableOpacity 
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.primary[500]} />
+            </TouchableOpacity>
+            <AppText variant="heading1" color="primary">
+              📋 Activity Log
+            </AppText>
+            <View style={styles.placeholder} />
+          </Stack>
+        </Container>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={Colors.shadowGray} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search activities or dates..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor={Colors.shadowGray}
+        {/* Search Bar */}
+        <Container padding="lg">
+          <SearchInput
+            placeholder="Search activities or dates..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onClear={() => setSearchQuery('')}
+            showClearButton={searchQuery.length > 0}
+          />
+        </Container>
+
+        {/* Summary */}
+        <Container padding="lg">
+          <StatCard
+            title="Activity Summary"
+            stats={[
+              { label: 'Total Activities', value: filteredLogs.length.toString() },
+              { label: 'Total Value', value: totalValue.text },
+            ]}
+          />
+        </Container>
+
+        {/* Activity List */}
+        <FlatList
+          data={filteredLogs}
+          renderItem={renderLogItem}
+          keyExtractor={(item) => item.id}
+          style={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={
+            <Container padding="xl">
+              <Stack align="center" spacing="md">
+                <AppText variant="bodyLarge" color="secondary" align="center">
+                  {searchQuery ? 'No activities found matching your search.' : 'No activities logged yet.'}
+                </AppText>
+                <AppText variant="bodySmall" color="tertiary" align="center">
+                  {searchQuery ? 'Try a different search term.' : 'Start logging activities to see them here.'}
+                </AppText>
+              </Stack>
+            </Container>
+          }
+          contentInsetAdjustmentBehavior="automatic"
+          accessibilityLabel="Activity list"
         />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color={Colors.shadowGray} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Summary */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total Activities:</Text>
-          <Text style={styles.summaryValue}>{filteredLogs.length}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total Value:</Text>
-          <Text style={[styles.summaryValue, { color: totalValue.color }]}>
-            {totalValue.text}
-          </Text>
-        </View>
-      </View>
-
-      {/* Activity List */}
-      <FlatList
-        data={filteredLogs}
-        renderItem={renderLogItem}
-        keyExtractor={(item) => item.id}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {searchQuery ? 'No activities found matching your search.' : 'No activities logged yet.'}
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {searchQuery ? 'Try a different search term.' : 'Start logging activities to see them here.'}
-            </Text>
-          </View>
-        }
-      />
+      </SafeAreaContainer>
     </LinearGradient>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = {
   container: {
     flex: 1,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    ...Typography.bodyLarge,
-    color: Colors.shadowGray,
-    marginTop: Spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.lg,
   },
   backButton: {
     padding: Spacing.sm,
   },
-  headerTitle: {
-    ...Typography.headline,
-    color: Colors.primaryBlue,
-    fontWeight: 'bold',
-    flex: 1,
-    textAlign: 'center',
-  },
-  headerRight: {
-    width: 40,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.cloudWhite,
-    marginHorizontal: Spacing.xl,
-    marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.medium,
-    ...Shadows.soft,
-  },
-  searchIcon: {
-    marginRight: Spacing.sm,
-  },
-  searchInput: {
-    ...Typography.bodyLarge,
-    flex: 1,
-    paddingVertical: Spacing.md,
-    color: Colors.primaryBlue,
-  },
-  summaryCard: {
-    backgroundColor: Colors.cloudWhite,
-    marginHorizontal: Spacing.xl,
-    marginBottom: Spacing.lg,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.medium,
-    ...Shadows.soft,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  summaryLabel: {
-    ...Typography.bodyLarge,
-    color: Colors.shadowGray,
-    fontWeight: '600',
-  },
-  summaryValue: {
-    ...Typography.bodyLarge,
-    color: Colors.primaryBlue,
-    fontWeight: 'bold',
+  placeholder: {
+    width: 40, // Same width as back button for centering
   },
   list: {
     flex: 1,
   },
-  listContent: {
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.xxl,
-  },
-  logItem: {
-    backgroundColor: Colors.cloudWhite,
-    marginBottom: Spacing.md,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.medium,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...Shadows.soft,
-  },
-  highValueItem: {
-    backgroundColor: '#F0FDF4',
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.successGreen,
-  },
-  logContent: {
-    flex: 1,
-  },
-  logHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  activityName: {
-    ...Typography.bodyLarge,
-    color: Colors.primaryBlue,
-    fontWeight: '600',
-    flex: 1,
-  },
-  value: {
-    ...Typography.bodyLarge,
-    fontWeight: 'bold',
-    marginLeft: Spacing.md,
-  },
-  logDetails: {
-    marginTop: Spacing.xs,
-  },
-  timeInfo: {
-    ...Typography.bodySmall,
-    color: Colors.shadowGray,
-  },
-  deleteButton: {
-    padding: Spacing.sm,
-    marginLeft: Spacing.md,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xxl,
-  },
-  emptyText: {
-    ...Typography.bodyLarge,
-    color: Colors.shadowGray,
-    textAlign: 'center',
-    marginBottom: Spacing.sm,
-  },
-  emptySubtext: {
-    ...Typography.bodySmall,
-    color: Colors.shadowGray,
-    textAlign: 'center',
-  },
-});
+};
 
 export default ActivityLogScreen;
